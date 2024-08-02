@@ -40,7 +40,7 @@ fn main() {
     }
 
     let mut buf = [0; 1500];
-    channel.set_nat_type(NatType::Cone).unwrap();
+    channel.set_nat_type(NatType::Cone).unwrap();  //一定要根据本地环境的Nat网络类型设置
     channel
         .send_to_addr(b"c", "150.158.95.11:3000".parse().unwrap())
         .unwrap();
@@ -66,7 +66,7 @@ fn main() {
                         0,
                         public_ip,
                         public_port,
-                        NatType::Cone,
+                        NatType::Cone,  //对方的Nat网络类型
                     ),
                 )
                 .unwrap(); //触发打洞
@@ -79,7 +79,7 @@ fn main() {
                         0,
                         public_ip,
                         public_port,
-                        NatType::Symmetric,
+                        NatType::Symmetric,//对方的Nat网络类型
                     ),
                 )
                 .unwrap(); //触发打洞
