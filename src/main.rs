@@ -3,8 +3,24 @@ use std::net::SocketAddrV4;
 use p2p_channel::{channel::Route, punch::NatType};
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
+    _ = args.get(1).expect("填写身份参数");
     let (mut channel, mut punch, idle) =
         p2p_channel::boot::Boot::new::<String>(110, 9000, 0).unwrap();
+    //channel.set_nat_type(NatType::Cone).unwrap();  //一定要根据本地环境的Nat网络类型设置
+    let nat = channel
+        .set_nat_type_with_stun(
+            vec![
+                "stun.miwifi.com:3478".to_string(),
+                "stun.chat.bilibili.com:3478".to_string(),
+                "stun.hitv.com:3478".to_string(),
+                "stun.cdnbye.com:3478".to_string(),
+                "stun.tel.lu:3478".to_string(),
+                "stun.smartvoip.com:3478".to_string(),
+            ],
+            None,
+        )
+        .unwrap();
+    println!("nat info: {:?}", nat);
     {
         // 空闲处理，添加的路由空闲时触发
         std::thread::spawn(move || {
@@ -40,7 +56,7 @@ fn main() {
     }
 
     let mut buf = [0; 1500];
-    channel.set_nat_type(NatType::Cone).unwrap();  //一定要根据本地环境的Nat网络类型设置
+
     channel
         .send_to_addr(b"c", "150.158.95.11:3000".parse().unwrap())
         .unwrap();
@@ -66,7 +82,7 @@ fn main() {
                         0,
                         public_ip,
                         public_port,
-                        NatType::Cone,  //对方的Nat网络类型
+                        NatType::Cone, //对方的Nat网络类型
                     ),
                 )
                 .unwrap(); //触发打洞
@@ -79,7 +95,7 @@ fn main() {
                         0,
                         public_ip,
                         public_port,
-                        NatType::Symmetric,//对方的Nat网络类型
+                        NatType::Symmetric, //对方的Nat网络类型
                     ),
                 )
                 .unwrap(); //触发打洞
