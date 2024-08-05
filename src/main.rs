@@ -37,6 +37,7 @@ fn main() {
         std::thread::spawn(move || {
             loop {
 				if terminate1.load(Ordering::Relaxed){
+					println!("idle task exit");
 					break;
 				}
                 let (idle_status, id, _route) = idle.next_idle().unwrap();
@@ -55,6 +56,7 @@ fn main() {
             let buf = format!("hello from {}", ident);
             loop {
 				if terminate2.load(Ordering::Relaxed){
+					println!("cone punch task exit");
 					break;
 				}
                 let (id, nat_info) = punch.next_cone(None).unwrap();
@@ -66,6 +68,7 @@ fn main() {
             let buf = format!("hello from {}", ident2);
             loop {
 				if terminate3.load(Ordering::Relaxed){
+					println!("symmetric punch task exit");
 					break;
 				}
                 let (id, nat_info) = punch2.next_symmetric(None).unwrap();
@@ -95,6 +98,7 @@ fn main() {
     let t4 = std::thread::spawn(move || {
         loop {
 			if terminate4.load(Ordering::Relaxed){
+				println!("trigger punch task exit");
 				break;
 			}
             chanel2
@@ -132,6 +136,7 @@ fn main() {
 		// 接收数据处理
 		loop {
 			if terminate5.load(Ordering::Relaxed){
+				println!("receive data task exit");
 				break;
 			}
 			let (len, route_key) = channel.recv_from(&mut buf, None).unwrap();
