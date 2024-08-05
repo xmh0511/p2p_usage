@@ -150,12 +150,12 @@ fn main() {
 	});
 	rx.recv().expect("Could not receive from channel.");
 	println!("exit");
-	chanel3.close().unwrap();
 	terminate.store(true, Ordering::Relaxed);
 	t1.join().unwrap();
 	t2.join().unwrap();
 	t3.join().unwrap();
 	t4.join().unwrap();
 	t5.join().unwrap();
+	chanel3.close().unwrap();
 	handle.join().unwrap();
 }
