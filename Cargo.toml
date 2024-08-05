@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 p2p_channel = {git = "https://github.com/vnt-dev/p2p_channel.git"}
+ctrlc2 = "3.5"
 #p2p_channel = {path = "./p2p_channel"}
