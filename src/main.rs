@@ -52,7 +52,7 @@ fn main() {
     .expect("Error setting Ctrl-C handler");
 
     let channel_route = channel.try_clone().unwrap();
-    let _ = {
+    let idle_thr = {
         // 空闲处理，添加的路由空闲时触发
         std::thread::spawn(move || {
             loop {
@@ -69,7 +69,7 @@ fn main() {
             }
         })
     };
-    let (_, _) = {
+    let (punch_cone_thr, puch_sym_thr) = {
         //let ident = args[1].clone();
         //let ident2 = ident.clone();
         // 打洞处理
@@ -125,7 +125,7 @@ fn main() {
     let (tx, rx) = std::sync::mpsc::channel::<(IpAddr, u16, u32)>();
     let chanel2 = channel.try_clone().unwrap();
     let chanel3 = channel.try_clone().unwrap();
-    {
+    let _report_and_heart_thr = {
         //上报服务器
         let mut bytes = vec![253u8];
         bytes.extend_from_slice(my_peer_id.to_be_bytes().as_slice());
@@ -138,6 +138,7 @@ fn main() {
                 if len != 1 || buf[0] != 252 {
                     panic!("report server unknow error!!!");
                 }
+                println!("上报中继服务器成功");
             }
             Err(e) => {
                 panic!("report server error!!! {e:?}");
@@ -146,17 +147,20 @@ fn main() {
         //持续发送心跳
         let chanel1 = channel.try_clone().unwrap();
         std::thread::spawn(move || loop {
-            chanel1
-                .send_to_addr(&[255u8], "150.158.95.11:3000".parse().unwrap())
-                .unwrap();
+            println!("send data to server!!!!!");
+            if let Err(_) = chanel1.send_to_addr(&[255u8], "150.158.95.11:3000".parse().unwrap()) {
+                println!("与服务心跳包任务结束");
+                return;
+            }
             std::thread::sleep(std::time::Duration::from_millis(5000));
-        });
-    }
+        })
+    };
     // Do something...
-    let _ = std::thread::spawn(move || {
+    let recev_punch_thr = std::thread::spawn(move || {
+        let mut threads_handler = vec![];
         while let Ok((public_ip, public_port, peer_id)) = rx.recv() {
             let channel = chanel2.try_clone().unwrap();
-            std::thread::spawn(move || {
+            threads_handler.push(std::thread::spawn(move || {
                 let peer_id = peer_id.to_string();
                 loop {
                     if let Err(_) = channel.punch(
@@ -189,11 +193,14 @@ fn main() {
                     }; //触发打洞
                     std::thread::sleep(std::time::Duration::from_millis(5000));
                 }
-            });
+            }));
+        }
+        for j in threads_handler {
+            _ = j.join();
         }
     });
 
-    let _ = std::thread::spawn(move || {
+    let receive_thr = std::thread::spawn(move || {
         let mut status = false;
         // 接收数据处理
         loop {
@@ -253,5 +260,11 @@ fn main() {
     sig_rx.recv().expect("Could not receive from channel.");
     println!("exit");
     chanel3.close().unwrap();
+    _ = idle_thr.join();
+    _ = punch_cone_thr.join();
+    _ = puch_sym_thr.join();
+    _ = receive_thr.join();
+    _ = recev_punch_thr.join();
+    _ = _report_and_heart_thr.join();
     handle.join().unwrap();
 }

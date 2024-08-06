@@ -1,22 +1,27 @@
 use std::{collections::HashMap, net::UdpSocket};
+
+fn bytes_to_u32(b: &[u8]) -> Option<u32> {
+    if b.len() != 4 {
+        return None;
+    }
+    let mut bytes = [0u8; 4];
+    unsafe {
+        std::ptr::copy_nonoverlapping(b.as_ptr(), bytes.as_mut_ptr(), 4);
+    }
+    Some(u32::from_be_bytes(bytes))
+}
 fn main() {
     let udp = UdpSocket::bind("0.0.0.0:3000").unwrap();
     let mut map = HashMap::new();
     let mut buf = [0u8; 1500];
     while let Ok((size, from)) = udp.recv_from(&mut buf) {
         if size > 0 && buf[0] == 253 {
-            let from_id = u32::from_be_bytes(unsafe {
-                let mut bytes = [0u8; 4];
-                let slice = &buf[1..5];
-                std::ptr::copy_nonoverlapping(slice.as_ptr(), bytes.as_mut_ptr(), 4);
-                bytes
-            });
-            let peer_id = u32::from_be_bytes(unsafe {
-                let mut bytes = [0u8; 4];
-                let slice = &buf[5..9];
-                std::ptr::copy_nonoverlapping(slice.as_ptr(), bytes.as_mut_ptr(), 4);
-                bytes
-            });
+            let Some(from_id) = bytes_to_u32(&buf[1..5]) else {
+                continue;
+            };
+            let Some(peer_id) = bytes_to_u32(&buf[5..9]) else {
+                continue;
+            };
             udp.send_to(&[252u8], from).unwrap();
             map.insert(from_id, from);
             if let Some(v) = map.get(&peer_id) {
