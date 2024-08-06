@@ -193,10 +193,5 @@ fn main() {
     sig_rx.recv().expect("Could not receive from channel.");
     println!("exit");
     chanel3.close().unwrap();
-    t1.join().unwrap();
-    t2.join().unwrap();
-    t3.join().unwrap();
-    t4.join().unwrap();
-    t5.join().unwrap();
     handle.join().unwrap();
 }
