@@ -166,9 +166,8 @@ fn main() {
                 }
             };
 			if len>0 && buf[0] == 0{
-
-			}else{
-				let text = String::from_utf8_lossy(&buf[..len]).to_string();
+			}else if len >0 && buf[0]==1{
+				let text = String::from_utf8_lossy(&buf[1..len]).to_string();
 				println!("receive {text} {route_key:?}");
 			}
             let id = format!("{}", route_key.addr);
@@ -177,9 +176,11 @@ fn main() {
             }
             if !status {
                 let msg = format!("my name is {}", args[1]);
+				let mut msg_p = vec![1u8];
+				msg_p.extend_from_slice(msg.as_bytes());
                 //channel.send_to_route(msg.as_bytes(), &route_key).unwrap();
                 //println!("route table {:?}", channel.route_table());
-                _ = channel.send_to_id(msg.as_bytes(), &id).unwrap();
+                _ = channel.send_to_id(msg_p.as_slice(), &id).unwrap();
                 //channel.send_to_addr(msg.as_bytes(), addr.parse().unwrap()).unwrap();
                 status = true;
             }
