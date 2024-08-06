@@ -48,13 +48,13 @@ fn main() {
         })
     };
     let (t2, t3) = {
-        let ident = args[1].clone();
-        let ident2 = ident.clone();
+        //let ident = args[1].clone();
+        //let ident2 = ident.clone();
         // 打洞处理
         let mut punch2 = punch.try_clone().unwrap();
         (
             std::thread::spawn(move || {
-                let buf = format!("hello from {}", ident);
+                let buf = b"\0";
                 loop {
                     let (id, nat_info) = match punch.next_cone(None) {
                         Ok(r) => r,
@@ -64,7 +64,7 @@ fn main() {
                         }
                     };
                     println!("{id} -> {nat_info:?}");
-                    match punch.punch(buf.as_bytes(), id, nat_info) {
+                    match punch.punch(&buf[..], id, nat_info) {
                         Ok(_) => {}
                         Err(_) => {
                             println!("cone punch task exit {}", line!());
@@ -74,7 +74,7 @@ fn main() {
                 }
             }),
             std::thread::spawn(move || {
-                let buf = format!("hello from {}", ident2);
+                let buf = b"\0";
                 loop {
                     let (id, nat_info) = match punch2.next_symmetric(None) {
                         Ok(r) => r,
@@ -84,7 +84,7 @@ fn main() {
                         }
                     };
                     println!("{id} -> {nat_info:?}");
-                    match punch2.punch(buf.as_bytes(), id, nat_info) {
+                    match punch2.punch(&buf[..], id, nat_info) {
                         Ok(_) => {}
                         Err(_) => {
                             println!("symmetric punch task exit {}", line!());
@@ -165,8 +165,12 @@ fn main() {
                     break;
                 }
             };
-            let text = String::from_utf8_lossy(&buf[..len]).to_string();
-            println!("receive {text} {route_key:?}");
+			if len>0 && buf[0] == 0{
+
+			}else{
+				let text = String::from_utf8_lossy(&buf[..len]).to_string();
+				println!("receive {text} {route_key:?}");
+			}
             let id = format!("{}", route_key.addr);
             if channel.route_to_id(&route_key).is_none() {
                 channel.add_route(id.clone(), Route::from(route_key, 10, 64)); //超时触发空闲
