@@ -154,38 +154,42 @@ fn main() {
     }
     // Do something...
     let _ = std::thread::spawn(move || {
-        let (public_ip, public_port, peer_id) = rx.recv().unwrap();
-        let peer_id = peer_id.to_string();
-        loop {
-            if let Err(_) = chanel2.punch(
-                peer_id.clone(),
-                p2p_channel::punch::NatInfo::new(
-                    vec![public_ip],
-                    public_port,
-                    0,
-                    public_ip,
-                    public_port,
-                    NatType::Cone, //对方的Nat网络类型
-                ),
-            ) {
-                println!("trigger punch task exit {}", line!());
-                break;
-            }; //触发打洞
-            if let Err(_) = chanel2.punch(
-                peer_id.clone(),
-                p2p_channel::punch::NatInfo::new(
-                    vec![public_ip],
-                    public_port,
-                    0,
-                    public_ip,
-                    public_port,
-                    NatType::Symmetric, //对方的Nat网络类型
-                ),
-            ) {
-                println!("trigger punch task exit {}", line!());
-                break;
-            }; //触发打洞
-            std::thread::sleep(std::time::Duration::from_millis(5000));
+        while let Ok((public_ip, public_port, peer_id)) = rx.recv() {
+            let channel = chanel2.try_clone().unwrap();
+            std::thread::spawn(move || {
+                let peer_id = peer_id.to_string();
+                loop {
+                    if let Err(_) = channel.punch(
+                        peer_id.clone(),
+                        p2p_channel::punch::NatInfo::new(
+                            vec![public_ip],
+                            public_port,
+                            0,
+                            public_ip,
+                            public_port,
+                            NatType::Cone, //对方的Nat网络类型
+                        ),
+                    ) {
+                        println!("trigger punch task exit {}", line!());
+                        break;
+                    }; //触发打洞
+                    if let Err(_) = channel.punch(
+                        peer_id.clone(),
+                        p2p_channel::punch::NatInfo::new(
+                            vec![public_ip],
+                            public_port,
+                            0,
+                            public_ip,
+                            public_port,
+                            NatType::Symmetric, //对方的Nat网络类型
+                        ),
+                    ) {
+                        println!("trigger punch task exit {}", line!());
+                        break;
+                    }; //触发打洞
+                    std::thread::sleep(std::time::Duration::from_millis(5000));
+                }
+            });
         }
     });
 
@@ -215,17 +219,17 @@ fn main() {
                 continue;
             }
             assert!(len >= 5, "len must be greater than 5");
-            let id = bytes_to_u32(&buf[1..5]).unwrap();
+            let remote_peer_id = bytes_to_u32(&buf[1..5]).unwrap().to_string();
 
             if len > 0 && buf[0] == 0 {
                 println!("say hello");
                 if channel.route_to_id(&route_key).is_none() {
-                    channel.add_route(id.to_string(), Route::from(route_key, 10, 64));
+                    channel.add_route(remote_peer_id.clone(), Route::from(route_key, 10, 64));
                     //超时触发空闲
                 }
             } else if len > 0 && buf[0] == 1 {
                 if channel.route_to_id(&route_key).is_none() {
-                    channel.add_route(id.to_string(), Route::from(route_key, 10, 64));
+                    channel.add_route(remote_peer_id.clone(), Route::from(route_key, 10, 64));
                     //超时触发空闲
                 }
                 let text = String::from_utf8_lossy(&buf[4..len]).to_string();
@@ -239,7 +243,7 @@ fn main() {
                 //channel.send_to_route(msg.as_bytes(), &route_key).unwrap();
                 //println!("route table {:?}", channel.route_table());
                 _ = channel
-                    .send_to_id(msg_p.as_slice(), &id.to_string())
+                    .send_to_id(msg_p.as_slice(), &remote_peer_id)
                     .unwrap();
                 //channel.send_to_addr(msg.as_bytes(), addr.parse().unwrap()).unwrap();
                 status = true;
