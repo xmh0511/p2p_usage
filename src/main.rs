@@ -108,7 +108,7 @@ fn main() {
     let chanel3 = channel.try_clone().unwrap();
     let mut chanel1 = channel.try_clone().unwrap();
     std::thread::spawn(move || {
-		let mut bytes = vec![];
+		let mut bytes = vec![0u8];
 		bytes.extend_from_slice(my_peer_id.to_be_bytes().as_slice());
 		bytes.extend_from_slice(peer_id.to_be_bytes().as_slice());
         chanel1
@@ -123,6 +123,10 @@ fn main() {
         let public_port = s.port();
         tx.send((public_ip, public_port)).unwrap();
         tx2.send(()).unwrap();
+		loop{
+			chanel1.send_to_addr(&[255u8], "150.158.95.11:3000".parse().unwrap()).unwrap();
+			std::thread::sleep(std::time::Duration::from_millis(5000));
+		}
     });
     // Do something...
     let _ = std::thread::spawn(move || {
@@ -173,6 +177,9 @@ fn main() {
                     break;
                 }
             };
+			if len > 0 && buf[0] == 255{
+				continue;
+			};
             let mut bytes = [0u8; 4];
             unsafe {
                 std::ptr::copy_nonoverlapping(buf[1..len].as_ptr(), bytes.as_mut_ptr(), 4);
