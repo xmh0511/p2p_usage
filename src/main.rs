@@ -7,7 +7,7 @@ fn main() {
     let args = std::env::args().collect::<Vec<String>>();
     _ = args.get(1).expect("填写身份参数");
     let (mut channel, mut punch, idle) =
-        p2p_channel::boot::Boot::new::<String>(110, 9000, 0).unwrap();
+        p2p_channel::boot::Boot::new::<String>(20, 9000, 0).unwrap();
     //channel.set_nat_type(NatType::Cone).unwrap();  //一定要根据本地环境的Nat网络类型设置
     let nat = channel
         .set_nat_type_with_stun(
@@ -40,7 +40,13 @@ fn main() {
 					println!("idle task exit");
 					break;
 				}
-                let (idle_status, id, _route) = idle.next_idle().unwrap();
+                let (idle_status, id, _route) = match idle.next_idle(){
+					Ok(r) => r,
+					Err(_) => {
+						println!("idle task exit");
+						break;
+					}
+				};
                 // channel.send_to_route()
                 //channel.remove_route(&id[0]);
                 println!("idle {:?} {}", idle_status, &id[0]);
@@ -59,7 +65,13 @@ fn main() {
 					println!("cone punch task exit");
 					break;
 				}
-                let (id, nat_info) = punch.next_cone(None).unwrap();
+                let (id, nat_info) = match punch.next_cone(None){
+					Ok(r) => r,
+					Err(_) => {
+						println!("cone punch task exit");
+						break;
+					}
+				};
                 println!("{id} -> {nat_info:?}");
                 punch.punch(buf.as_bytes(), id, nat_info).unwrap();
             }
@@ -71,7 +83,13 @@ fn main() {
 					println!("symmetric punch task exit");
 					break;
 				}
-                let (id, nat_info) = punch2.next_symmetric(None).unwrap();
+                let (id, nat_info) = match punch2.next_symmetric(None){
+					Ok(r)=>r,
+					Err(_)=>{
+						println!("symmetric punch task exit");
+						break;
+					}
+				};
                 println!("{id} -> {nat_info:?}");
                 punch2.punch(buf.as_bytes(), id, nat_info).unwrap();
             }
@@ -142,7 +160,9 @@ fn main() {
 			let (len, route_key) = channel.recv_from(&mut buf, None).unwrap();
 			let text = String::from_utf8_lossy(&buf[..len]).to_string();
 			println!("receive {text} {route_key:?}");
-			channel.add_route(id.clone(), Route::from(route_key, 10, 64)); //超时触发空闲
+			if channel.route_to_id(&route_key).is_none(){
+				channel.add_route(id.clone(), Route::from(route_key, 10, 64)); //超时触发空闲
+			}
 			if !status {
 				let msg = format!("my name is {}", args[1]);
 				//channel.send_to_route(msg.as_bytes(), &route_key).unwrap();
