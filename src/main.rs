@@ -6,7 +6,7 @@ use p2p_channel::{channel::Route, punch::NatType};
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
     let my_peer_id: u32 = args.get(1).expect("填写身份参数").parse().unwrap();
-
+	let peer_id:u32 = args.get(2).expect("填写对方身份参数").parse().unwrap();
     let (mut channel, mut punch, idle) =
         p2p_channel::boot::Boot::new::<String>(20, 9000, 0).unwrap();
     //channel.set_nat_type(NatType::Cone).unwrap();  //一定要根据本地环境的Nat网络类型设置
@@ -108,8 +108,11 @@ fn main() {
     let chanel3 = channel.try_clone().unwrap();
     let mut chanel1 = channel.try_clone().unwrap();
     std::thread::spawn(move || {
+		let mut bytes = vec![];
+		bytes.extend_from_slice(my_peer_id.to_be_bytes().as_slice());
+		bytes.extend_from_slice(peer_id.to_be_bytes().as_slice());
         chanel1
-            .send_to_addr(b"c", "150.158.95.11:3000".parse().unwrap())
+            .send_to_addr(&bytes, "150.158.95.11:3000".parse().unwrap())
             .unwrap();
         let (len, _route_key) = chanel1.recv_from(&mut buf, None).unwrap();
         let addr = String::from_utf8_lossy(&buf[..len]).to_string();
