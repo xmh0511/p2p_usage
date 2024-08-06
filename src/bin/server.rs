@@ -1,5 +1,7 @@
 use std::{collections::HashMap, net::UdpSocket};
 
+use env_logger::Env;
+
 fn bytes_to_u32(b: &[u8]) -> Option<u32> {
     if b.len() != 4 {
         return None;
@@ -11,6 +13,7 @@ fn bytes_to_u32(b: &[u8]) -> Option<u32> {
     Some(u32::from_be_bytes(bytes))
 }
 fn main() {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
     let udp = UdpSocket::bind("0.0.0.0:3000").unwrap();
     let mut map = HashMap::new();
     let mut buf = [0u8; 1500];

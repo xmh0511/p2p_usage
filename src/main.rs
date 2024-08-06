@@ -1,4 +1,7 @@
+use clap::Parser;
 use ctrlc2;
+use env_logger::Env;
+use log::info;
 use std::net::{IpAddr, SocketAddrV4};
 use std::sync::mpsc;
 
@@ -23,10 +26,29 @@ fn bytes_to_u32(b: &[u8]) -> Option<u32> {
 254: 服务器协调消息 |254u8|peer_id:u32|peer_addr:String|
 255: 心跳 |255u8|
  */
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// 服务器地址
+    #[arg(short, long)]
+    server: String,
+
+    /// 身份号
+    #[arg(short, long)]
+    id: u32,
+
+    /// 对方身份号
+    #[arg(short, long)]
+    peer_id: u32,
+}
 fn main() {
-    let args = std::env::args().collect::<Vec<String>>();
-    let my_peer_id: u32 = args.get(1).expect("填写身份参数").parse().unwrap();
-    let peer_id: u32 = args.get(2).expect("填写对方身份参数").parse().unwrap();
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    let Args {
+        server,
+        id: my_peer_id,
+        peer_id,
+    } = Args::parse();
     let (mut channel, mut punch, idle) =
         p2p_channel::boot::Boot::new::<String>(20, 9000, 0).unwrap();
     //channel.set_nat_type(NatType::Cone).unwrap();  //一定要根据本地环境的Nat网络类型设置
@@ -43,7 +65,7 @@ fn main() {
             None,
         )
         .unwrap();
-    println!("nat info: {:?}", nat);
+    info!("nat info: {:?}", nat);
     let (tx, sig_rx) = mpsc::channel();
     let handle = ctrlc2::set_handler(move || {
         tx.send(()).expect("Could not send signal on channel.");
@@ -59,13 +81,13 @@ fn main() {
                 let (idle_status, id, _route) = match idle.next_idle() {
                     Ok(r) => r,
                     Err(_) => {
-                        println!("idle task exit {}", line!());
+                        info!("idle task exit {}", line!());
                         break;
                     }
                 };
                 // channel.send_to_route()
                 channel_route.remove_route(&id[0]);
-                println!("idle {:?} {}", idle_status, &id[0]);
+                info!("idle {:?} {}", idle_status, &id[0]);
             }
         })
     };
@@ -82,19 +104,18 @@ fn main() {
                     let (id, nat_info) = match punch.next_cone(None) {
                         Ok(r) => r,
                         Err(_) => {
-                            println!("cone punch task exit {}", line!());
                             break;
                         }
                     };
-                    println!("{id} -> {nat_info:?}");
+                    info!("{id} -> {nat_info:?}");
                     match punch.punch(&buf[..], id, nat_info) {
                         Ok(_) => {}
                         Err(_) => {
-                            println!("cone punch task exit {}", line!());
                             break;
                         }
                     }
                 }
+                info!("cone punch task exit {}", line!());
             }),
             std::thread::spawn(move || {
                 let mut buf = vec![0u8];
@@ -103,7 +124,6 @@ fn main() {
                     let (id, nat_info) = match punch2.next_symmetric(None) {
                         Ok(r) => r,
                         Err(_) => {
-                            println!("symmetric punch task exit {}", line!());
                             break;
                         }
                     };
@@ -111,11 +131,11 @@ fn main() {
                     match punch2.punch(&buf[..], id, nat_info) {
                         Ok(_) => {}
                         Err(_) => {
-                            println!("symmetric punch task exit {}", line!());
                             break;
                         }
                     }
                 }
+                info!("symmetric punch task exit {}", line!());
             }),
         )
     };
@@ -131,25 +151,24 @@ fn main() {
         bytes.extend_from_slice(my_peer_id.to_be_bytes().as_slice());
         bytes.extend_from_slice(peer_id.to_be_bytes().as_slice());
         channel
-            .send_to_addr(&bytes, "150.158.95.11:3000".parse().unwrap())
+            .send_to_addr(&bytes, server.parse().unwrap())
             .unwrap();
         match channel.recv_from(&mut buf, Some(std::time::Duration::from_secs(5))) {
             Ok((len, _)) => {
                 if len != 1 || buf[0] != 252 {
                     panic!("report server unknow error!!!");
                 }
-                println!("上报中继服务器成功");
+                info!("上报中继服务器成功");
             }
             Err(e) => {
-                panic!("report server error!!! {e:?}");
+                info!("report server error!!! {e:?}");
             }
         }
         //持续发送心跳
         let chanel1 = channel.try_clone().unwrap();
         std::thread::spawn(move || loop {
-            println!("send data to server!!!!!");
             if let Err(_) = chanel1.send_to_addr(&[255u8], "150.158.95.11:3000".parse().unwrap()) {
-                println!("与服务心跳包任务结束");
+                info!("与服务心跳包任务结束");
                 return;
             }
             std::thread::sleep(std::time::Duration::from_millis(5000));
@@ -174,7 +193,6 @@ fn main() {
                             NatType::Cone, //对方的Nat网络类型
                         ),
                     ) {
-                        println!("trigger punch task exit {}", line!());
                         break;
                     }; //触发打洞
                     if let Err(_) = channel.punch(
@@ -188,7 +206,6 @@ fn main() {
                             NatType::Symmetric, //对方的Nat网络类型
                         ),
                     ) {
-                        println!("trigger punch task exit {}", line!());
                         break;
                     }; //触发打洞
                     std::thread::sleep(std::time::Duration::from_millis(5000));
@@ -198,6 +215,7 @@ fn main() {
         for j in threads_handler {
             _ = j.join();
         }
+        info!("trigger punch task exit {}", line!());
     });
 
     let receive_thr = std::thread::spawn(move || {
@@ -207,7 +225,6 @@ fn main() {
             let (len, route_key) = match channel.recv_from(&mut buf, None) {
                 Ok(r) => r,
                 Err(_) => {
-                    println!("receive data task exit {}", line!());
                     break;
                 }
             };
@@ -243,7 +260,7 @@ fn main() {
                 println!("receive {text} {route_key:?}");
             }
             if !status {
-                let msg = format!("my name is {}", args[1]);
+                let msg = format!("my identity is {}", my_peer_id);
                 let mut msg_p = vec![1u8];
                 msg_p.extend_from_slice(my_peer_id.to_be_bytes().as_slice());
                 msg_p.extend_from_slice(msg.as_bytes());
@@ -256,9 +273,10 @@ fn main() {
                 status = true;
             }
         }
+        info!("receive data task exit {}", line!());
     });
     sig_rx.recv().expect("Could not receive from channel.");
-    println!("exit");
+    info!("exit");
     chanel3.close().unwrap();
     _ = idle_thr.join();
     _ = punch_cone_thr.join();
