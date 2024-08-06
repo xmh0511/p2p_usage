@@ -3,10 +3,21 @@ use std::net::{IpAddr, SocketAddrV4};
 use std::sync::mpsc;
 
 use p2p_channel::{channel::Route, punch::NatType};
+
+fn bytes_to_u32(b: &[u8]) -> Option<u32> {
+    if b.len() != 4 {
+        return None;
+    }
+    let mut bytes = [0u8; 4];
+    unsafe {
+        std::ptr::copy_nonoverlapping(b.as_ptr(), bytes.as_mut_ptr(), 4);
+    }
+    Some(u32::from_be_bytes(bytes))
+}
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
     let my_peer_id: u32 = args.get(1).expect("填写身份参数").parse().unwrap();
-	let peer_id:u32 = args.get(2).expect("填写对方身份参数").parse().unwrap();
+    let peer_id: u32 = args.get(2).expect("填写对方身份参数").parse().unwrap();
     let (mut channel, mut punch, idle) =
         p2p_channel::boot::Boot::new::<String>(20, 9000, 0).unwrap();
     //channel.set_nat_type(NatType::Cone).unwrap();  //一定要根据本地环境的Nat网络类型设置
@@ -102,39 +113,41 @@ fn main() {
 
     let mut buf = [0; 1500];
 
-    let (tx, rx) = std::sync::mpsc::channel::<(IpAddr, u16)>();
+    let (tx, rx) = std::sync::mpsc::channel::<(IpAddr, u16, u32)>();
     let (tx2, rx2) = std::sync::mpsc::channel::<()>();
     let chanel2 = channel.try_clone().unwrap();
     let chanel3 = channel.try_clone().unwrap();
     let mut chanel1 = channel.try_clone().unwrap();
     std::thread::spawn(move || {
-		let mut bytes = vec![0u8];
-		bytes.extend_from_slice(my_peer_id.to_be_bytes().as_slice());
-		bytes.extend_from_slice(peer_id.to_be_bytes().as_slice());
+        let mut bytes = vec![0u8];
+        bytes.extend_from_slice(my_peer_id.to_be_bytes().as_slice());
+        bytes.extend_from_slice(peer_id.to_be_bytes().as_slice());
         chanel1
             .send_to_addr(&bytes, "150.158.95.11:3000".parse().unwrap())
             .unwrap();
-        let (len, _route_key) = chanel1.recv_from(&mut buf, None).unwrap();
-        let addr = String::from_utf8_lossy(&buf[..len]).to_string();
-        //println!("{addr}");
-        let s: SocketAddrV4 = addr.parse().unwrap();
-        println!("peer addr: {}", s);
-        let public_ip = std::net::IpAddr::V4(s.ip().to_owned());
-        let public_port = s.port();
-        tx.send((public_ip, public_port)).unwrap();
-        tx2.send(()).unwrap();
-		loop{
-			chanel1.send_to_addr(&[255u8], "150.158.95.11:3000".parse().unwrap()).unwrap();
-			std::thread::sleep(std::time::Duration::from_millis(5000));
-		}
+        // let (len, _route_key) = chanel1.recv_from(&mut buf, None).unwrap();
+        // let addr = String::from_utf8_lossy(&buf[..len]).to_string();
+        // //println!("{addr}");
+        // let s: SocketAddrV4 = addr.parse().unwrap();
+        // println!("peer addr: {}", s);
+        // let public_ip = std::net::IpAddr::V4(s.ip().to_owned());
+        // let public_port = s.port();
+        // tx.send((public_ip, public_port)).unwrap();
+        // tx2.send(()).unwrap();
+        loop {
+            chanel1
+                .send_to_addr(&[255u8], "150.158.95.11:3000".parse().unwrap())
+                .unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(5000));
+        }
     });
     // Do something...
     let _ = std::thread::spawn(move || {
-        let (public_ip, public_port) = rx.recv().unwrap();
-        let id = format!("{public_ip}:{public_port}");
+        let (public_ip, public_port, peer_id) = rx.recv().unwrap();
+        let peer_id = peer_id.to_string();
         loop {
             if let Err(_) = chanel2.punch(
-                id.clone(),
+                peer_id.clone(),
                 p2p_channel::punch::NatInfo::new(
                     vec![public_ip],
                     public_port,
@@ -148,7 +161,7 @@ fn main() {
                 break;
             }; //触发打洞
             if let Err(_) = chanel2.punch(
-                id.clone(),
+                peer_id.clone(),
                 p2p_channel::punch::NatInfo::new(
                     vec![public_ip],
                     public_port,
@@ -167,7 +180,6 @@ fn main() {
 
     let _ = std::thread::spawn(move || {
         let mut status = false;
-        rx2.recv().unwrap();
         // 接收数据处理
         loop {
             let (len, route_key) = match channel.recv_from(&mut buf, None) {
@@ -177,14 +189,23 @@ fn main() {
                     break;
                 }
             };
-			if len > 0 && buf[0] == 255{
-				continue;
-			};
-            let mut bytes = [0u8; 4];
-            unsafe {
-                std::ptr::copy_nonoverlapping(buf[1..len].as_ptr(), bytes.as_mut_ptr(), 4);
+            if len > 0 && buf[0] == 255 {
+                //心跳
+                continue;
+            };
+            if len > 0 && buf[0] == 254 {
+                //服务器协商客户端
+                let peer_id = bytes_to_u32(&buf[1..5]).unwrap();
+                let peer_addr = String::from_utf8_lossy(&buf[5..len]).to_string();
+                let s: SocketAddrV4 = peer_addr.parse().unwrap();
+                let public_ip = std::net::IpAddr::V4(s.ip().to_owned());
+                let public_port = s.port();
+                tx.send((public_ip, public_port, peer_id)).unwrap();
+                tx2.send(()).unwrap();
+                continue;
             }
-            let id = u32::from_be_bytes(bytes);
+            assert!(len >= 5, "len must be greater than 5");
+            let id = bytes_to_u32(&buf[1..5]).unwrap();
 
             if len > 0 && buf[0] == 0 {
                 println!("say hello");
@@ -193,7 +214,7 @@ fn main() {
                     //超时触发空闲
                 }
             } else if len > 0 && buf[0] == 1 {
-				if channel.route_to_id(&route_key).is_none() {
+                if channel.route_to_id(&route_key).is_none() {
                     channel.add_route(id.to_string(), Route::from(route_key, 10, 64));
                     //超时触发空闲
                 }
