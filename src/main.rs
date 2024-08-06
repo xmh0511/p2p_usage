@@ -14,6 +14,15 @@ fn bytes_to_u32(b: &[u8]) -> Option<u32> {
     }
     Some(u32::from_be_bytes(bytes))
 }
+/*
+0: 对端打洞报文 |0u8|peer_id:u32|
+1: 对端数据报文 |1u8|peer_id:u32| data|
+
+252: 服务器确认上报的信息 |252u8|
+253: 上报服务器信息 |253u8|my_peer_id:u32|to_peer_id:u32|
+254: 服务器协调消息 |254u8|peer_id:u32|peer_addr:String|
+255: 心跳 |255u8|
+ */
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
     let my_peer_id: u32 = args.get(1).expect("填写身份参数").parse().unwrap();
@@ -114,33 +123,35 @@ fn main() {
     let mut buf = [0; 1500];
 
     let (tx, rx) = std::sync::mpsc::channel::<(IpAddr, u16, u32)>();
-    let (tx2, rx2) = std::sync::mpsc::channel::<()>();
     let chanel2 = channel.try_clone().unwrap();
     let chanel3 = channel.try_clone().unwrap();
-    let mut chanel1 = channel.try_clone().unwrap();
-    std::thread::spawn(move || {
-        let mut bytes = vec![0u8];
+    {
+        //上报服务器
+        let mut bytes = vec![253u8];
         bytes.extend_from_slice(my_peer_id.to_be_bytes().as_slice());
         bytes.extend_from_slice(peer_id.to_be_bytes().as_slice());
-        chanel1
+        channel
             .send_to_addr(&bytes, "150.158.95.11:3000".parse().unwrap())
             .unwrap();
-        // let (len, _route_key) = chanel1.recv_from(&mut buf, None).unwrap();
-        // let addr = String::from_utf8_lossy(&buf[..len]).to_string();
-        // //println!("{addr}");
-        // let s: SocketAddrV4 = addr.parse().unwrap();
-        // println!("peer addr: {}", s);
-        // let public_ip = std::net::IpAddr::V4(s.ip().to_owned());
-        // let public_port = s.port();
-        // tx.send((public_ip, public_port)).unwrap();
-        // tx2.send(()).unwrap();
-        loop {
+        match channel.recv_from(&mut buf, Some(std::time::Duration::from_secs(5))) {
+            Ok((len, _)) => {
+                if len != 1 || buf[0] != 252 {
+                    panic!("report server unknow error!!!");
+                }
+            }
+            Err(e) => {
+                panic!("report server error!!! {e:?}");
+            }
+        }
+        //持续发送心跳
+        let chanel1 = channel.try_clone().unwrap();
+        std::thread::spawn(move || loop {
             chanel1
                 .send_to_addr(&[255u8], "150.158.95.11:3000".parse().unwrap())
                 .unwrap();
             std::thread::sleep(std::time::Duration::from_millis(5000));
-        }
-    });
+        });
+    }
     // Do something...
     let _ = std::thread::spawn(move || {
         let (public_ip, public_port, peer_id) = rx.recv().unwrap();
@@ -189,8 +200,8 @@ fn main() {
                     break;
                 }
             };
-            if len > 0 && buf[0] == 255 {
-                //心跳
+            if len > 0 && (buf[0] == 255 || buf[0] == 252) {
+                //心跳或服务器确认
                 continue;
             };
             if len > 0 && buf[0] == 254 {
@@ -201,7 +212,6 @@ fn main() {
                 let public_ip = std::net::IpAddr::V4(s.ip().to_owned());
                 let public_port = s.port();
                 tx.send((public_ip, public_port, peer_id)).unwrap();
-                tx2.send(()).unwrap();
                 continue;
             }
             assert!(len >= 5, "len must be greater than 5");

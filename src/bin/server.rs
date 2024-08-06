@@ -4,7 +4,7 @@ fn main() {
     let mut map = HashMap::new();
     let mut buf = [0u8; 1500];
     while let Ok((size, from)) = udp.recv_from(&mut buf) {
-        if size > 0 && buf[0] == 0 {
+        if size > 0 && buf[0] == 253 {
             let from_id = u32::from_be_bytes(unsafe {
                 let mut bytes = [0u8; 4];
                 let slice = &buf[1..5];
@@ -17,6 +17,7 @@ fn main() {
                 std::ptr::copy_nonoverlapping(slice.as_ptr(), bytes.as_mut_ptr(), 4);
                 bytes
             });
+            udp.send_to(&[252u8], from).unwrap();
             map.insert(from_id, from);
             if let Some(v) = map.get(&peer_id) {
                 println!("pair {v} with {from}");
