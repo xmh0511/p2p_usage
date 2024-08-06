@@ -110,7 +110,7 @@ fn main() {
             .recv_from(&mut buf, None)
             .unwrap();
         let addr = String::from_utf8_lossy(&buf[..len]).to_string();
-        println!("{addr}");
+        //println!("{addr}");
         let s: SocketAddrV4 = addr.parse().unwrap();
         println!("peer addr: {}", s);
         let public_ip = std::net::IpAddr::V4(s.ip().to_owned());
@@ -166,6 +166,7 @@ fn main() {
                 }
             };
 			if len>0 && buf[0] == 0{
+				println!("say hello");
 			}else if len >0 && buf[0]==1{
 				let text = String::from_utf8_lossy(&buf[1..len]).to_string();
 				println!("receive {text} {route_key:?}");
