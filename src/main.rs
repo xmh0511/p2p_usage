@@ -1,6 +1,6 @@
-use std::{net::SocketAddrV4, sync::{atomic::{AtomicBool, Ordering}, Arc}};
-use std::sync::mpsc;
 use ctrlc2;
+use std::net::{IpAddr, SocketAddrV4};
+use std::sync::mpsc;
 
 use p2p_channel::{channel::Route, punch::NatType};
 fn main() {
@@ -23,170 +23,170 @@ fn main() {
         )
         .unwrap();
     println!("nat info: {:?}", nat);
-	let (tx, rx) = mpsc::channel();
-	let handle = ctrlc2::set_handler(move || {tx.send(()).expect("Could not send signal on channel."); true})
-	.expect("Error setting Ctrl-C handler");
-	let terminate = Arc::new(AtomicBool::new(false));
-	let terminate1 = terminate.clone();
-	let terminate2 = terminate.clone();
-	let terminate3 = terminate.clone();
-	let terminate4 = terminate.clone();
-	let terminate5 = terminate.clone();
+    let (tx, sig_rx) = mpsc::channel();
+    let handle = ctrlc2::set_handler(move || {
+        tx.send(()).expect("Could not send signal on channel.");
+        true
+    })
+    .expect("Error setting Ctrl-C handler");
+
     let t1 = {
         // 空闲处理，添加的路由空闲时触发
         std::thread::spawn(move || {
             loop {
-				if terminate1.load(Ordering::Relaxed){
-					println!("idle task exit");
-					break;
-				}
-                let (idle_status, id, _route) = match idle.next_idle(){
-					Ok(r) => r,
-					Err(_) => {
-						println!("idle task exit {}",line!());
-						break;
-					}
-				};
+                let (idle_status, id, _route) = match idle.next_idle() {
+                    Ok(r) => r,
+                    Err(_) => {
+                        println!("idle task exit {}", line!());
+                        break;
+                    }
+                };
                 // channel.send_to_route()
                 //channel.remove_route(&id[0]);
                 println!("idle {:?} {}", idle_status, &id[0]);
             }
         })
     };
-    let (t2,t3) = {
+    let (t2, t3) = {
         let ident = args[1].clone();
         let ident2 = ident.clone();
         // 打洞处理
         let mut punch2 = punch.try_clone().unwrap();
-        (std::thread::spawn(move || {
-            let buf = format!("hello from {}", ident);
-            loop {
-				if terminate2.load(Ordering::Relaxed){
-					println!("cone punch task exit");
-					break;
-				}
-                let (id, nat_info) = match punch.next_cone(None){
-					Ok(r) => r,
-					Err(_) => {
-						println!("cone punch task exit {}",line!());
-						break;
-					}
-				};
-                println!("{id} -> {nat_info:?}");
-                punch.punch(buf.as_bytes(), id, nat_info).unwrap();
-            }
-        }),
-        std::thread::spawn(move || {
-            let buf = format!("hello from {}", ident2);
-            loop {
-				if terminate3.load(Ordering::Relaxed){
-					println!("symmetric punch task exit");
-					break;
-				}
-                let (id, nat_info) = match punch2.next_symmetric(None){
-					Ok(r)=>r,
-					Err(_)=>{
-						println!("symmetric punch task exit {}",line!());
-						break;
-					}
-				};
-                println!("{id} -> {nat_info:?}");
-                punch2.punch(buf.as_bytes(), id, nat_info).unwrap();
-            }
-        }))
+        (
+            std::thread::spawn(move || {
+                let buf = format!("hello from {}", ident);
+                loop {
+                    let (id, nat_info) = match punch.next_cone(None) {
+                        Ok(r) => r,
+                        Err(_) => {
+                            println!("cone punch task exit {}", line!());
+                            break;
+                        }
+                    };
+                    println!("{id} -> {nat_info:?}");
+                    match punch.punch(buf.as_bytes(), id, nat_info) {
+                        Ok(_) => {}
+                        Err(_) => {
+                            println!("cone punch task exit {}", line!());
+                            break;
+                        }
+                    }
+                }
+            }),
+            std::thread::spawn(move || {
+                let buf = format!("hello from {}", ident2);
+                loop {
+                    let (id, nat_info) = match punch2.next_symmetric(None) {
+                        Ok(r) => r,
+                        Err(_) => {
+                            println!("symmetric punch task exit {}", line!());
+                            break;
+                        }
+                    };
+                    println!("{id} -> {nat_info:?}");
+                    match punch2.punch(buf.as_bytes(), id, nat_info) {
+                        Ok(_) => {}
+                        Err(_) => {
+                            println!("symmetric punch task exit {}", line!());
+                            break;
+                        }
+                    }
+                }
+            }),
+        )
     };
 
     let mut buf = [0; 1500];
 
-    channel
-        .send_to_addr(b"c", "150.158.95.11:3000".parse().unwrap())
-        .unwrap();
-    let (len, _route_key) = channel.recv_from(&mut buf, None).unwrap();
-    let addr = String::from_utf8_lossy(&buf[..len]).to_string();
-    //println!("{addr}");
-    let s: SocketAddrV4 = addr.parse().unwrap();
-    println!("peer addr: {}", s);
-    let public_ip = std::net::IpAddr::V4(s.ip().to_owned());
-    let public_port = s.port();
-    let id = format!("{s}");
+    let (tx, rx) = std::sync::mpsc::channel::<(IpAddr, u16)>();
+    std::thread::spawn(move || {
+        channel
+            .send_to_addr(b"c", "150.158.95.11:3000".parse().unwrap())
+            .unwrap();
+        let (len, _route_key) = channel
+            .recv_from(&mut buf, None)
+            .unwrap();
+        let addr = String::from_utf8_lossy(&buf[..len]).to_string();
+        println!("{addr}");
+        let s: SocketAddrV4 = addr.parse().unwrap();
+        println!("peer addr: {}", s);
+        let public_ip = std::net::IpAddr::V4(s.ip().to_owned());
+        let public_port = s.port();
+        tx.send((public_ip, public_port)).unwrap();
+    });
     // Do something...
     let chanel2 = channel.try_clone().unwrap();
-	let chanel3 = channel.try_clone().unwrap();
-    let id2 = id.clone();
+    let chanel3 = channel.try_clone().unwrap();
     let t4 = std::thread::spawn(move || {
+        let (public_ip, public_port) = rx.recv().unwrap();
+        let id2 = format!("{public_ip}:{public_port}");
         loop {
-			if terminate4.load(Ordering::Relaxed){
-				println!("trigger punch task exit");
-				break;
-			}
-            chanel2
-                .punch(
-                    id2.clone(),
-                    p2p_channel::punch::NatInfo::new(
-                        vec![public_ip],
-                        public_port,
-                        0,
-                        public_ip,
-                        public_port,
-                        NatType::Cone, //对方的Nat网络类型
-                    ),
-                )
-                .unwrap(); //触发打洞
-            chanel2
-                .punch(
-                    id2.clone(),
-                    p2p_channel::punch::NatInfo::new(
-                        vec![public_ip],
-                        public_port,
-                        0,
-                        public_ip,
-                        public_port,
-                        NatType::Symmetric, //对方的Nat网络类型
-                    ),
-                )
-                .unwrap(); //触发打洞
+            if let Err(_) = chanel2.punch(
+                id2.clone(),
+                p2p_channel::punch::NatInfo::new(
+                    vec![public_ip],
+                    public_port,
+                    0,
+                    public_ip,
+                    public_port,
+                    NatType::Cone, //对方的Nat网络类型
+                ),
+            ) {
+                println!("trigger punch task exit {}", line!());
+                break;
+            }; //触发打洞
+            if let Err(_) = chanel2.punch(
+                id2.clone(),
+                p2p_channel::punch::NatInfo::new(
+                    vec![public_ip],
+                    public_port,
+                    0,
+                    public_ip,
+                    public_port,
+                    NatType::Symmetric, //对方的Nat网络类型
+                ),
+            ) {
+                println!("trigger punch task exit {}", line!());
+                break;
+            }; //触发打洞
             std::thread::sleep(std::time::Duration::from_millis(5000));
         }
     });
 
-	let t5 = std::thread::spawn(move ||{
-		let mut status = false;
-		// 接收数据处理
-		loop {
-			if terminate5.load(Ordering::Relaxed){
-				println!("receive data task exit");
-				break;
-			}
-			let (len, route_key) = match channel.recv_from(&mut buf, None){
-				Ok(r)=>r,
-				Err(_)=>{
-					println!("receive data task exit {}",line!());
-					break;
-				}
-			};
-			let text = String::from_utf8_lossy(&buf[..len]).to_string();
-			println!("receive {text} {route_key:?}");
-			if channel.route_to_id(&route_key).is_none(){
-				channel.add_route(id.clone(), Route::from(route_key, 10, 64)); //超时触发空闲
-			}
-			if !status {
-				let msg = format!("my name is {}", args[1]);
-				//channel.send_to_route(msg.as_bytes(), &route_key).unwrap();
-				//println!("route table {:?}", channel.route_table());
-				_ = channel.send_to_id(msg.as_bytes(), &id).unwrap();
-				//channel.send_to_addr(msg.as_bytes(), addr.parse().unwrap()).unwrap();
-				status = true;
-			}
-		}
-	});
-	rx.recv().expect("Could not receive from channel.");
-	println!("exit");
-	terminate.store(true, Ordering::Relaxed);
-	chanel3.close().unwrap();
-	t1.join().unwrap();
-	t2.join().unwrap();
-	t3.join().unwrap();
-	t4.join().unwrap();
-	t5.join().unwrap();
-	handle.join().unwrap();
+    let t5 = std::thread::spawn(move || {
+        let mut status = false;
+        // 接收数据处理
+        loop {
+            let (len, route_key) = match channel.recv_from(&mut buf, None) {
+                Ok(r) => r,
+                Err(_) => {
+                    println!("receive data task exit {}", line!());
+                    break;
+                }
+            };
+            let text = String::from_utf8_lossy(&buf[..len]).to_string();
+            println!("receive {text} {route_key:?}");
+            let id = format!("{}", route_key.addr);
+            if channel.route_to_id(&route_key).is_none() {
+                channel.add_route(id.clone(), Route::from(route_key, 10, 64)); //超时触发空闲
+            }
+            if !status {
+                let msg = format!("my name is {}", args[1]);
+                //channel.send_to_route(msg.as_bytes(), &route_key).unwrap();
+                //println!("route table {:?}", channel.route_table());
+                _ = channel.send_to_id(msg.as_bytes(), &id).unwrap();
+                //channel.send_to_addr(msg.as_bytes(), addr.parse().unwrap()).unwrap();
+                status = true;
+            }
+        }
+    });
+    sig_rx.recv().expect("Could not receive from channel.");
+    println!("exit");
+    chanel3.close().unwrap();
+    t1.join().unwrap();
+    t2.join().unwrap();
+    t3.join().unwrap();
+    t4.join().unwrap();
+    t5.join().unwrap();
+    handle.join().unwrap();
 }
