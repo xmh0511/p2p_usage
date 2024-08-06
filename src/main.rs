@@ -5,7 +5,8 @@ use std::sync::mpsc;
 use p2p_channel::{channel::Route, punch::NatType};
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
-    _ = args.get(1).expect("填写身份参数");
+    let peer_id = args.get(1).expect("填写身份参数").clone();
+	
     let (mut channel, mut punch, idle) =
         p2p_channel::boot::Boot::new::<String>(20, 9000, 0).unwrap();
     //channel.set_nat_type(NatType::Cone).unwrap();  //一定要根据本地环境的Nat网络类型设置
@@ -30,7 +31,8 @@ fn main() {
     })
     .expect("Error setting Ctrl-C handler");
 
-    let t1 = {
+	let channel_route = channel.try_clone().unwrap();
+    let _ = {
         // 空闲处理，添加的路由空闲时触发
         std::thread::spawn(move || {
             loop {
@@ -42,12 +44,12 @@ fn main() {
                     }
                 };
                 // channel.send_to_route()
-                //channel.remove_route(&id[0]);
+                channel_route.remove_route(&id[0]);
                 println!("idle {:?} {}", idle_status, &id[0]);
             }
         })
     };
-    let (t2, t3) = {
+    let (_, _) = {
         //let ident = args[1].clone();
         //let ident2 = ident.clone();
         // 打洞处理
@@ -120,12 +122,12 @@ fn main() {
 		tx2.send(()).unwrap();
     });
     // Do something...
-    let t4 = std::thread::spawn(move || {
+	let peer_id_1 = peer_id.clone();
+    let _ = std::thread::spawn(move || {
         let (public_ip, public_port) = rx.recv().unwrap();
-        let id2 = format!("{public_ip}:{public_port}");
         loop {
             if let Err(_) = chanel2.punch(
-                id2.clone(),
+                peer_id_1.clone(),
                 p2p_channel::punch::NatInfo::new(
                     vec![public_ip],
                     public_port,
@@ -139,7 +141,7 @@ fn main() {
                 break;
             }; //触发打洞
             if let Err(_) = chanel2.punch(
-                id2.clone(),
+                peer_id_1.clone(),
                 p2p_channel::punch::NatInfo::new(
                     vec![public_ip],
                     public_port,
@@ -156,7 +158,7 @@ fn main() {
         }
     });
 
-    let t5 = std::thread::spawn(move || {
+    let _ = std::thread::spawn(move || {
         let mut status = false;
 		rx2.recv().unwrap();
         // 接收数据处理
