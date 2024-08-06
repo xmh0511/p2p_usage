@@ -1,7 +1,7 @@
 use clap::Parser;
 use ctrlc2;
 use env_logger::Env;
-use log::info;
+use log::{debug, info};
 use std::net::{IpAddr, SocketAddrV4};
 use std::sync::mpsc;
 
@@ -127,7 +127,7 @@ fn main() {
                             break;
                         }
                     };
-                    println!("{id} -> {nat_info:?}");
+                    info!("{id} -> {nat_info:?}");
                     match punch2.punch(&buf[..], id, nat_info) {
                         Ok(_) => {}
                         Err(_) => {
@@ -246,7 +246,7 @@ fn main() {
             let remote_peer_id = bytes_to_u32(&buf[1..5]).unwrap().to_string();
 
             if len > 0 && buf[0] == 0 {
-                println!("say hello");
+                debug!("say hello");
                 if channel.route_to_id(&route_key).is_none() {
                     channel.add_route(remote_peer_id.clone(), Route::from(route_key, 10, 64));
                     //超时触发空闲
@@ -257,7 +257,7 @@ fn main() {
                     //超时触发空闲
                 }
                 let text = String::from_utf8_lossy(&buf[4..len]).to_string();
-                println!("receive {text} {route_key:?}");
+                info!("receive {text} {route_key:?}");
             }
             if !status {
                 let msg = format!("my identity is {}", my_peer_id);
