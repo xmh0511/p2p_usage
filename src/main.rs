@@ -183,6 +183,10 @@ fn main() {
                     //超时触发空闲
                 }
             } else if len > 0 && buf[0] == 1 {
+				if channel.route_to_id(&route_key).is_none() {
+                    channel.add_route(id.to_string(), Route::from(route_key, 10, 64));
+                    //超时触发空闲
+                }
                 let text = String::from_utf8_lossy(&buf[4..len]).to_string();
                 println!("receive {text} {route_key:?}");
             }
