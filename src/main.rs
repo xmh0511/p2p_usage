@@ -99,6 +99,7 @@ fn main() {
     let mut buf = [0; 1500];
 
     let (tx, rx) = std::sync::mpsc::channel::<(IpAddr, u16)>();
+	let (tx2,rx2) = std::sync::mpsc::channel::<()>();
 	let chanel2 = channel.try_clone().unwrap();
     let chanel3 = channel.try_clone().unwrap();
 	let mut chanel1 = channel.try_clone().unwrap();
@@ -116,6 +117,7 @@ fn main() {
         let public_ip = std::net::IpAddr::V4(s.ip().to_owned());
         let public_port = s.port();
         tx.send((public_ip, public_port)).unwrap();
+		tx2.send(()).unwrap();
     });
     // Do something...
     let t4 = std::thread::spawn(move || {
@@ -156,6 +158,7 @@ fn main() {
 
     let t5 = std::thread::spawn(move || {
         let mut status = false;
+		rx2.recv().unwrap();
         // 接收数据处理
         loop {
             let (len, route_key) = match channel.recv_from(&mut buf, None) {
