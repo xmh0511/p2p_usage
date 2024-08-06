@@ -157,7 +157,13 @@ fn main() {
 				println!("receive data task exit");
 				break;
 			}
-			let (len, route_key) = channel.recv_from(&mut buf, None).unwrap();
+			let (len, route_key) = match channel.recv_from(&mut buf, None){
+				Ok(r)=>r,
+				Err(_)=>{
+					println!("receive data task exit");
+					break;
+				}
+			};
 			let text = String::from_utf8_lossy(&buf[..len]).to_string();
 			println!("receive {text} {route_key:?}");
 			if channel.route_to_id(&route_key).is_none(){
