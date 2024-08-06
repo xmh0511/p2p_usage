@@ -99,11 +99,14 @@ fn main() {
     let mut buf = [0; 1500];
 
     let (tx, rx) = std::sync::mpsc::channel::<(IpAddr, u16)>();
+	let chanel2 = channel.try_clone().unwrap();
+    let chanel3 = channel.try_clone().unwrap();
+	let mut chanel1 = channel.try_clone().unwrap();
     std::thread::spawn(move || {
-        channel
+        chanel1
             .send_to_addr(b"c", "150.158.95.11:3000".parse().unwrap())
             .unwrap();
-        let (len, _route_key) = channel
+        let (len, _route_key) = chanel1
             .recv_from(&mut buf, None)
             .unwrap();
         let addr = String::from_utf8_lossy(&buf[..len]).to_string();
@@ -115,8 +118,6 @@ fn main() {
         tx.send((public_ip, public_port)).unwrap();
     });
     // Do something...
-    let chanel2 = channel.try_clone().unwrap();
-    let chanel3 = channel.try_clone().unwrap();
     let t4 = std::thread::spawn(move || {
         let (public_ip, public_port) = rx.recv().unwrap();
         let id2 = format!("{public_ip}:{public_port}");
