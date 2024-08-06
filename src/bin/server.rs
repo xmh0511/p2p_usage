@@ -1,6 +1,7 @@
 use std::{collections::HashMap, net::UdpSocket};
 
 use env_logger::Env;
+use log::info;
 
 fn bytes_to_u32(b: &[u8]) -> Option<u32> {
     if b.len() != 4 {
@@ -28,7 +29,7 @@ fn main() {
             udp.send_to(&[252u8], from).unwrap();
             map.insert(from_id, from);
             if let Some(v) = map.get(&peer_id) {
-                println!("pair {v} with {from}");
+                info!("pair {v} with {from}");
                 let mut for_from = vec![254u8];
                 for_from.extend_from_slice(peer_id.to_be_bytes().as_slice());
                 for_from.extend_from_slice(v.to_string().as_bytes());
@@ -40,7 +41,6 @@ fn main() {
                 udp.send_to(&for_peer, v).unwrap();
                 map.remove(&peer_id);
                 map.remove(&from_id);
-                println!("\r\n");
             }
         } else if size > 0 && buf[0] == 255 {
             if let Err(_) = udp.send_to(&[255u8], from) {
