@@ -43,7 +43,7 @@ fn main() {
                 let (idle_status, id, _route) = match idle.next_idle(){
 					Ok(r) => r,
 					Err(_) => {
-						println!("idle task exit");
+						println!("idle task exit {}",line!());
 						break;
 					}
 				};
@@ -68,7 +68,7 @@ fn main() {
                 let (id, nat_info) = match punch.next_cone(None){
 					Ok(r) => r,
 					Err(_) => {
-						println!("cone punch task exit");
+						println!("cone punch task exit {}",line!());
 						break;
 					}
 				};
@@ -86,7 +86,7 @@ fn main() {
                 let (id, nat_info) = match punch2.next_symmetric(None){
 					Ok(r)=>r,
 					Err(_)=>{
-						println!("symmetric punch task exit");
+						println!("symmetric punch task exit {}",line!());
 						break;
 					}
 				};
@@ -160,7 +160,7 @@ fn main() {
 			let (len, route_key) = match channel.recv_from(&mut buf, None){
 				Ok(r)=>r,
 				Err(_)=>{
-					println!("receive data task exit");
+					println!("receive data task exit {}",line!());
 					break;
 				}
 			};
