@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-p2p_channel = {git = "https://github.com/vnt-dev/p2p_channel.git"}
+#p2p_channel = {git = "https://github.com/vnt-dev/p2p_channel.git"}
 ctrlc2 = "3.5"
 clap = {version="4.5.13",features=["derive"]}
 log = "0.4.22"
 env_logger = "0.11.5"
-#p2p_channel = {path = "./p2p_channel"}
+p2p_channel = {path = "./p2p_channel"}

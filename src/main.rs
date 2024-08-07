@@ -153,8 +153,10 @@ fn main() {
         channel
             .send_to_addr(&bytes, server.parse().unwrap())
             .unwrap();
+		println!("等待服务器返回");
         match channel.recv_from(&mut buf, Some(std::time::Duration::from_secs(5))) {
             Ok((len, _)) => {
+				println!("recev from server");
                 if len != 1 || buf[0] != 252 {
                     panic!("report server unknow error!!!");
                 }
@@ -278,6 +280,7 @@ fn main() {
     sig_rx.recv().expect("Could not receive from channel.");
     info!("exit");
     chanel3.close().unwrap();
+	drop(chanel3);
     _ = idle_thr.join();
     _ = punch_cone_thr.join();
     _ = puch_sym_thr.join();
