@@ -478,7 +478,8 @@ dependencies = [
 
 [[package]]
 name = "p2p_channel"
-version = "0.5.0"
+version = "0.5.1"
+source = "git+https://github.com/vnt-dev/p2p_channel.git#8ea1a0631d1c9b538df4213dfe0b67105a435fa8"
 dependencies = [
  "anyhow",
  "chrono",
